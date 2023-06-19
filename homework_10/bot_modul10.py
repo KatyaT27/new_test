@@ -38,9 +38,8 @@ class Record:
 
 
 class AddressBook(UserDict):
-    def add_record(self, name):
-        record = Record(name)
-        self.data[name] = record
+    def add_record(self, record):
+        self.data[record.name.value] = record
 
     def remove_record(self, name):
         if name in self.data:
@@ -98,8 +97,9 @@ def main():
         elif command == "add":
             name = input("Enter name: ")
             phone = input("Enter phone number: ")
-            address_book.add_record(name)
-            address_book.add_phone_to_record(name, phone)
+            record = Record(name)
+            record.add_phone(phone)
+            address_book.add_record(record)
             print("Contact added successfully.")
         elif command == "remove":
             name = input("Enter name: ")
@@ -163,7 +163,5 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
-    
-    
-    
+
+
