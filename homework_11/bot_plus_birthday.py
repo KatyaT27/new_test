@@ -3,25 +3,17 @@ from datetime import datetime, timedelta
 
 
 class Field:
-    def __init__(self, value=None):
+    def __init__(self, value):
         self._value = None
         self.value = value
-
-    def __repr__(self):
-        return str(self.value)
 
     @property
     def value(self):
         return self._value
 
     @value.setter
-    def value(self, new_value):
-        if new_value is not None and not self.validate(new_value):
-            raise ValueError("Invalid value")
-        self._value = new_value
-
-    def validate(self, value):
-        return True
+    def value(self, value):
+        self._value = value
 
 
 class Name(Field):
@@ -29,145 +21,155 @@ class Name(Field):
 
 
 class Phone(Field):
-    def validate(self, value):
-        return value.isdigit() and len(value) == 10
+    @Field.value.setter
+    def value(self, value: str):
+        if value.isdigit():
+            self._value = value
+        else:
+            print('The phone number must contain only digits')
 
 
 class Birthday(Field):
-    def validate(self, value):
+    @Field.value.setter
+    def value(self, value: str):
         try:
-            datetime.strptime(value, "%d-%m-%Y")
-            return True
+            datetime.strptime(value, '%d/%m/%Y')
+            self._value = value
         except ValueError:
-            return False
+            print('Invalid birthday format. Please use DD/MM/YYYY.')
 
 
 class Record:
-    def __init__(self, name, birthday=None):
+    def __init__(self, name, phone, birthday=None):
         self.name = Name(name)
-        self.phones = []
+        self.phone = Phone(phone)
         self.birthday = Birthday(birthday) if birthday else None
 
-    def add_phone(self, phone):
-        self.phones.append(Phone(phone))
-
-    def remove_phone(self, index):
-        if 0 <= index < len(self.phones):
-            del self.phones[index]
-
-    def edit_phone(self, index, phone):
-        if 0 <= index < len(self.phones):
-            self.phones[index].value = phone
-
     def days_to_birthday(self):
-        if self.birthday is None:
-            return None
-        today = datetime.now().date()
-        next_birthday = datetime.strptime(
-            self.birthday.value, "%d-%m-%Y").date().replace(year=today.year)
-        if today > next_birthday:
-            next_birthday = next_birthday.replace(year=today.year + 1)
-        return (next_birthday - today).days
-
-    def __repr__(self):
-        return f"Name: {self.name}, Phones: {self.phones}, Birthday: {self.birthday}"
+        if self.birthday:
+            today = datetime.now().date()
+            next_birthday = datetime.strptime(
+                self.birthday.value, '%d/%m/%Y').date().replace(year=today.year)
+            if next_birthday < today:
+                next_birthday = next_birthday.replace(year=today.year + 1)
+            return (next_birthday - today).days
+        return None
 
 
 class AddressBook(UserDict):
-    def add_record(self, record):
-        self.data[record.name.value] = record
-
-    def remove_record(self, name):
-        if name in self.data:
-            del self.data[name]
-
-    def edit_record_name(self, name, new_name):
-        if name in self.data:
-            record = self.data[name]
-            record.name.value = new_name
-            self.data[new_name] = record
-            del self.data[name]
-
-    def add_phone_to_record(self, name, phone):
-        if name in self.data:
-            record = self.data[name]
-            record.add_phone(phone)
-
-    def remove_phone_from_record(self, name, index):
-        if name in self.data:
-            record = self.data[name]
-            record.remove_phone(index)
-
-    def edit_phone_in_record(self, name, index, phone):
-        if name in self.data:
-            record = self.data[name]
-            record.edit_phone(index, phone)
-
-    def search_records(self, **kwargs):
-        results = []
-        for record in self.data.values():
-            match = True
-            for key, value in kwargs.items():
-                if not hasattr(record, key) or getattr(record, key).value != value:
-                    match = False
-                    break
-            if match:
-                results.append(record)
-        return results
-
-    def __iter__(self):
-        return iter(self.data.values())
+    def iterator(self, n):
+        records = list(self.data.values())
+        for i in range(0, len(records), n):
+            yield records[i:i + n]
 
 
 def main():
     address_book = AddressBook()
+    commands = {
+        'add': add_contact,
+        'remove': remove_contact,
+        'edit': edit_contact,
+        'search': search_contacts,
+        'exit': exit_program
+    }
 
     while True:
-        command = input("Enter command (add/search/remove/edit/exit): ")
-        if command == "exit":
-            break
-        elif command == "add":
-            name = input("Enter name: ")
-            birthday = input(
-                "Enter birthday (DD-MM-YYYY) or press Enter to skip: ")
-            record = Record(name, birthday)
-            address_book.add_record(record)
-            print("Contact added successfully.")
-        elif command == "search":
-            criteria = {}
-            while True:
-                field = input(
-                    "Enter field name (name/phone) or press Enter to search: ")
-                if field == "":
-                    break
-                value = input("Enter field value: ")
-                criteria[field] = value
-            results = address_book.search_records(**criteria)
-            if results:
-                print("Search results:")
-                for result in results:
-                    print(result)
-            else:
-                print("No matching records found.")
-        elif command == "remove":
-            name = input("Enter name: ")
-            if name in address_book.data:
-                address_book.remove_record(name)
-                print("Contact removed successfully.")
-            else:
-                print("Contact not found.")
-        elif command == "edit":
-            name = input("Enter name: ")
-            if name in address_book.data:
-                record = address_book.data[name]
-                phone = input("Enter phone number: ")
-                record.add_phone(phone)
-                print("Phone number added successfully.")
-            else:
-                print("Contact not found.")
+        print_commands()
+        command = input('Enter command: ').lower().strip()
+
+        if command in commands:
+            commands[command](address_book)
         else:
-            print("Invalid command.")
+            print('Invalid command. Please try again.')
 
 
-if __name__ == "__main__":
+def print_commands():
+    print('COMMANDS:')
+    print('add - Add a contact')
+    print('remove - Remove a contact')
+    print('edit - Edit a contact')
+    print('search - Search contacts')
+    print('exit - Exit the program')
+
+
+def add_contact(address_book):
+    name = input('Enter name: ')
+    phone = input('Enter phone number: ')
+    birthday = input('Enter birthday (DD/MM/YYYY): ')
+    record = Record(name, phone, birthday)
+    address_book.data[name] = record
+    print('Contact added successfully.')
+
+
+def remove_contact(address_book):
+    name = input('Enter name: ')
+    if name in address_book.data:
+        del address_book.data[name]
+        print('Contact removed successfully.')
+    else:
+        print('Contact not found.')
+
+
+def edit_contact(address_book):
+    name = input('Enter name: ')
+    if name in address_book.data:
+        record = address_book.data[name]
+        print('Current contact details:')
+        print('Name:', record.name.value)
+        print('Phone:', record.phone.value)
+        print('Birthday:', record.birthday.value)
+
+        new_name = input(
+            'Enter new name (leave empty to keep the current value): ')
+        new_phone = input(
+            'Enter new phone number (leave empty to keep the current value): ')
+        new_birthday = input(
+            'Enter new birthday (DD/MM/YYYY) (leave empty to keep the current value): ')
+
+        if new_name:
+            record.name.value = new_name
+        if new_phone:
+            record.phone.value = new_phone
+        if new_birthday:
+            record.birthday.value = new_birthday
+
+        print('Contact edited successfully.')
+    else:
+        print('Contact not found.')
+
+
+def search_contacts(address_book):
+    field = input(
+        'Enter field name (name/phone) or press Enter to search: ').lower().strip()
+    value = input('Enter search value: ')
+
+    results = []
+    if field and field in ['name', 'phone']:
+        for record in address_book.data.values():
+            if field == 'name' and record.name.value.lower() == value.lower():
+                results.append(record)
+            elif field == 'phone' and record.phone.value == value:
+                results.append(record)
+    else:
+        for record in address_book.data.values():
+            results.append(record)
+
+    print('Search results:')
+    for result in results:
+        print('Name:', result.name.value)
+        print('Phone:', result.phone.value)
+        print('Birthday:', result.birthday.value)
+        print()
+
+    if not results:
+        print('No contacts found.')
+
+
+def exit_program(address_book):
+    print('Exiting the program.')
+    # Additional cleanup or saving operations can be performed here, if needed.
+    quit()
+
+
+if __name__ == '__main__':
     main()
